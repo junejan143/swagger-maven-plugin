@@ -13,13 +13,19 @@ import com.github.jknack.handlebars.Template;
 import com.github.jknack.handlebars.helper.StringHelpers;
 import com.github.jknack.handlebars.io.TemplateLoader;
 import com.github.kongchen.swagger.docgen.mavenplugin.ApiSource;
+import com.github.kongchen.swagger.docgen.mavenplugin.SecurityDefinition;
 import com.github.kongchen.swagger.docgen.reader.AbstractReader;
 import com.github.kongchen.swagger.docgen.reader.ClassSwaggerReader;
 import com.github.kongchen.swagger.docgen.reader.ModelModifier;
+import com.github.kongchen.swagger.docgen.reader.SpringMvcExtendReader;
+import io.swagger.config.FilterFactory;
 import io.swagger.converter.ModelConverter;
 import io.swagger.converter.ModelConverters;
+import io.swagger.core.filter.SpecFilter;
+import io.swagger.core.filter.SwaggerSpecFilter;
 import io.swagger.models.Scheme;
 import io.swagger.models.Swagger;
+import io.swagger.models.auth.SecuritySchemeDefinition;
 import io.swagger.models.properties.Property;
 import io.swagger.util.Json;
 import io.swagger.util.Yaml;
@@ -27,23 +33,15 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugin.logging.Log;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Type;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.List;
-import org.apache.maven.plugin.logging.Log;
+import java.util.*;
 
 /**
  * @author chekong 05/13/2013
@@ -95,9 +93,51 @@ public abstract class AbstractDocumentSource {
         this.apiSource = apiSource;
     }
 
+    public abstract void doLoadDocuments() throws GenerateException;
 
-    public abstract void loadDocuments() throws GenerateException;
-    
+    public void loadDocuments() throws GenerateException{
+        if (apiSource.getSwaggerInternalFilter() != null) {
+            try {
+                LOG.info("Setting filter configuration: " + apiSource.getSwaggerInternalFilter());
+                FilterFactory.setFilter((SwaggerSpecFilter) Class.forName(apiSource.getSwaggerInternalFilter()).newInstance());
+            } catch (Exception e) {
+                throw new GenerateException("Cannot load: " + apiSource.getSwaggerInternalFilter(), e);
+            }
+        }
+
+        doLoadDocuments();
+
+        if(apiSource.getSecurityDefinitions() != null) {
+            for (SecurityDefinition sd : apiSource.getSecurityDefinitions()) {
+                for (Map.Entry<String, SecuritySchemeDefinition> entry : sd.getDefinitions().entrySet()) {
+                    swagger.addSecurityDefinition(entry.getKey(), entry.getValue());
+                }
+            }
+            // sort security defs to make output consistent
+            Map<String, SecuritySchemeDefinition> defs = swagger.getSecurityDefinitions();
+            Map<String, SecuritySchemeDefinition> sortedDefs = new TreeMap<String, SecuritySchemeDefinition>();
+            sortedDefs.putAll(defs);
+            swagger.setSecurityDefinitions(sortedDefs);
+        }
+
+        if (FilterFactory.getFilter() != null) {
+            swagger = new SpecFilter().filter(swagger, FilterFactory.getFilter(),
+                    new HashMap<String, List<String>>(), new HashMap<String, String>(),
+                    new HashMap<String, List<String>>());
+        }
+    }
+
+    public ClassSwaggerReader resolveApiReader() throws GenerateException {
+        String customReaderClassName = apiSource.getSwaggerApiReader();
+        if (customReaderClassName == null) {
+            SpringMvcExtendReader reader = new SpringMvcExtendReader(swagger, LOG);
+            reader.setTypesToSkip(this.typesToSkip);
+            return reader;
+        } else {
+            return getCustomApiReader(customReaderClassName);
+        }
+    }
+
     public void toSwaggerDocuments(String uiDocBasePath, String outputFormats) throws GenerateException {
         toSwaggerDocuments(uiDocBasePath, outputFormats, null);
     }

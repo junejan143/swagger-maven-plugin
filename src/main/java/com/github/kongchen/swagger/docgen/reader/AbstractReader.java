@@ -4,37 +4,15 @@ import com.github.kongchen.swagger.docgen.jaxrs.BeanParamInjectParamExtention;
 import com.github.kongchen.swagger.docgen.jaxrs.JaxrsParameterExtension;
 import com.github.kongchen.swagger.docgen.spring.SpringSwaggerExtension;
 import com.sun.jersey.api.core.InjectParam;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiImplicitParams;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
-import io.swagger.annotations.AuthorizationScope;
-import io.swagger.annotations.Extension;
-import io.swagger.annotations.ExtensionProperty;
-import io.swagger.annotations.ResponseHeader;
+import io.swagger.annotations.*;
 import io.swagger.converter.ModelConverters;
 import io.swagger.jaxrs.ext.SwaggerExtension;
 import io.swagger.jaxrs.ext.SwaggerExtensions;
 import io.swagger.jersey.SwaggerJerseyJaxrs;
-import io.swagger.models.Model;
-import io.swagger.models.Operation;
+import io.swagger.models.*;
 import io.swagger.models.Path;
-import io.swagger.models.Response;
-import io.swagger.models.Scheme;
-import io.swagger.models.SecurityRequirement;
-import io.swagger.models.Swagger;
 import io.swagger.models.Tag;
-import io.swagger.models.parameters.AbstractSerializableParameter;
-import io.swagger.models.parameters.BodyParameter;
-import io.swagger.models.parameters.FormParameter;
-import io.swagger.models.parameters.HeaderParameter;
-import io.swagger.models.parameters.Parameter;
-import io.swagger.models.parameters.PathParameter;
-import io.swagger.models.parameters.QueryParameter;
+import io.swagger.models.parameters.*;
 import io.swagger.models.properties.ArrayProperty;
 import io.swagger.models.properties.MapProperty;
 import io.swagger.models.properties.Property;
@@ -44,32 +22,14 @@ import io.swagger.util.PathUtils;
 import org.apache.commons.lang3.reflect.TypeUtils;
 import org.apache.maven.plugin.logging.Log;
 import org.springframework.core.annotation.AnnotationUtils;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
 
-import javax.ws.rs.BeanParam;
-import javax.ws.rs.FormParam;
-import javax.ws.rs.HeaderParam;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.QueryParam;
+import javax.ws.rs.*;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author chekong on 15/4/28.
@@ -224,43 +184,56 @@ public abstract class AbstractReader {
         path.set(httpMethod, operation);
     }
 
-    protected void updateTagsForOperation(Operation operation, ApiOperation apiOperation) {
-        if (apiOperation == null) {
-            return;
-        }
-        for (String tag : apiOperation.tags()) {
-            if (!tag.isEmpty()) {
-                operation.tag(tag);
-                swagger.tag(new Tag().name(tag));
+    protected void updateTagsForOperation(Operation operation, Annotation annotation) {
+        if (annotation != null){
+            if (annotation instanceof ApiOperation){
+                ApiOperation apiOperation = (ApiOperation)annotation;
+                for (String tag : apiOperation.tags()) {
+                    if (!tag.isEmpty()) {
+                        operation.tag(tag);
+                        swagger.tag(new Tag().name(tag));
+                    }
+                }
+            }else if (annotation instanceof RequestMapping){
+                swagger.tag(new Tag().name("方法的标记"));
             }
         }
+
     }
 
     protected boolean canReadApi(boolean readHidden, Api api) {
         return (api != null && readHidden) || (api != null && !api.hidden());
     }
 
-    protected Set<Tag> extractTags(Api api) {
+    private Set<Tag> extractTags(Annotation annotation) {
         Set<Tag> output = new LinkedHashSet<Tag>();
 
         boolean hasExplicitTags = false;
-        for (String tag : api.tags()) {
-            if (!tag.isEmpty()) {
-                hasExplicitTags = true;
-                output.add(new Tag().name(tag));
-            }
-        }
-        if (!hasExplicitTags) {
-            // derive tag from api path + description
-            String tagString = api.value().replace("/", "");
-            if (!tagString.isEmpty()) {
-                Tag tag = new Tag().name(tagString);
-                if (!api.description().isEmpty()) {
-                    tag.description(api.description());
+        if (annotation instanceof Api){
+            Api api = (Api)annotation;
+            for (String tag : api.tags()) {
+                if (!tag.isEmpty()) {
+                    hasExplicitTags = true;
+                    output.add(new Tag().name(tag));
                 }
-                output.add(tag);
             }
+            if (!hasExplicitTags) {
+                // derive tag from api path + description
+                String tagString = api.value().replace("/", "");
+                if (!tagString.isEmpty()) {
+                    Tag tag = new Tag().name(tagString);
+                    if (!api.description().isEmpty()) {
+                        tag.description(api.description());
+                    }
+                    output.add(tag);
+                }
+            }
+        }else if ((annotation instanceof Controller) || (annotation instanceof RestController)){
+            Tag tag = new Tag().name("暂时的大标记啊");
+            tag.description("标签的描述");
+            output.add(tag);
         }
+
         return output;
     }
 
@@ -274,10 +247,10 @@ public abstract class AbstractReader {
         }
     }
 
-    protected Map<String, Tag> updateTagsForApi(Map<String, Tag> parentTags, Api api) {
+    protected Map<String, Tag> updateTagsForApi(Map<String, Tag> parentTags, Annotation annotation) {
         // the value will be used as a tag for 2.0 UNLESS a Tags annotation is present
         Map<String, Tag> tagsMap = new HashMap<String, Tag>();
-        for (Tag tag : extractTags(api)) {
+        for (Tag tag : extractTags(annotation)) {
             tagsMap.put(tag.getName(), tag);
         }
         if (parentTags != null) {

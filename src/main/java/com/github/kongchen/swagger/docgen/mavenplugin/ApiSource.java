@@ -66,7 +66,7 @@ public class ApiSource {
 
     @Parameter
     private String swaggerDirectory;
-    
+
     @Parameter
     private String swaggerFileName;
 
@@ -97,7 +97,7 @@ public class ApiSource {
     private String swaggerApiReader;
 
     @Parameter
-    private boolean springmvc;
+    private String type="SpringMVC";
 
     @Parameter
     private boolean useJAXBAnnotationProcessor;
@@ -266,7 +266,7 @@ public class ApiSource {
     public void setSwaggerDirectory(String swaggerDirectory) {
         this.swaggerDirectory = swaggerDirectory;
     }
-    
+
     public String getSwaggerFileName() {
         return swaggerFileName;
     }
@@ -342,12 +342,12 @@ public class ApiSource {
         return modelSubstitute;
     }
 
-    public boolean isSpringmvc() {
-        return springmvc;
+    public String getType() {
+        return type;
     }
 
-    public void setSpringmvc(boolean springmvc) {
-        this.springmvc = springmvc;
+    public void setType(String type) {
+        this.type = type;
     }
 
     public String getSwaggerSchemaConverter() {

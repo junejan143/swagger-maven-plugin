@@ -21,6 +21,11 @@ import java.util.List;
  * User: kongchen
  * Date: 3/7/13
  */
+
+/**
+ * @author: zychen
+ * @time: 2016/11/12
+ */
 @Mojo(name = "generate", defaultPhase = LifecyclePhase.COMPILE, configurator = "include-project-dependencies",
         requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
 public class ApiDocumentMojo extends AbstractMojo {
@@ -77,41 +82,49 @@ public class ApiDocumentMojo extends AbstractMojo {
             getLog().debug(apiSources.toString());
             for (ApiSource apiSource : apiSources) {
                 validateConfiguration(apiSource);
-                AbstractDocumentSource documentSource = apiSource.isSpringmvc()
-                        ? new SpringMavenDocumentSource(apiSource, getLog())
-                        : new MavenDocumentSource(apiSource, getLog());
+                String type=apiSource.getType();
+                AbstractDocumentSource documentSource = null;
+                //此处判断需要载入那个资源
+                if(type.equals("SpringMVC")){
+                    documentSource=new SpringMavenDocumentSource(apiSource, getLog());
+                } else if (type.equals("SpringMVC-Extend")){
+                    documentSource=new SpringExtendMavenDocumentSource(apiSource, getLog());
+                } else if(type.equals("JAX-RS")){
+                    documentSource= new MavenDocumentSource(apiSource, getLog());
+                }
+                if (documentSource != null) {
+                    documentSource.loadTypesToSkip();
+                    documentSource.loadModelModifier();
+                    documentSource.loadModelConverters();
+                    documentSource.loadDocuments();
 
-                documentSource.loadTypesToSkip();
-                documentSource.loadModelModifier();
-                documentSource.loadModelConverters();
-                documentSource.loadDocuments();
-                if (apiSource.getOutputPath() != null) {
-                    File outputDirectory = new File(apiSource.getOutputPath()).getParentFile();
-                    if (outputDirectory != null && !outputDirectory.exists()) {
-                        if (!outputDirectory.mkdirs()) {
-                            throw new MojoExecutionException("Create directory[" +
-                                    apiSource.getOutputPath() + "] for output failed.");
+                    if (apiSource.getOutputPath() != null) {
+                        File outputDirectory = new File(apiSource.getOutputPath()).getParentFile();
+                        if (outputDirectory != null && !outputDirectory.exists()) {
+                            if (!outputDirectory.mkdirs()) {
+                                throw new MojoExecutionException("Create directory[" +
+                                        apiSource.getOutputPath() + "] for output failed.");
+                            }
                         }
                     }
-                }
-                if (apiSource.getTemplatePath() != null) {
-                    documentSource.toDocuments();
-                }
-                String swaggerFileName = getSwaggerFileName(apiSource.getSwaggerFileName());
-                documentSource.toSwaggerDocuments(
-                        apiSource.getSwaggerUIDocBasePath() == null
-                                ? apiSource.getBasePath()
-                                : apiSource.getSwaggerUIDocBasePath(),
-                        apiSource.getOutputFormats(), swaggerFileName);
+                    if (apiSource.getTemplatePath() != null) {
+                        documentSource.toDocuments();
+                    }
+                    String swaggerFileName = getSwaggerFileName(apiSource.getSwaggerFileName());
+                    documentSource.toSwaggerDocuments(
+                            apiSource.getSwaggerUIDocBasePath() == null
+                                    ? apiSource.getBasePath()
+                                    : apiSource.getSwaggerUIDocBasePath(),
+                            apiSource.getOutputFormats(), swaggerFileName);
 
-
-                if (apiSource.isAttachSwaggerArtifact() && apiSource.getSwaggerDirectory() != null && project != null) {
-                    String outputFormats = apiSource.getOutputFormats();
-                    if (outputFormats != null) {
-                        for (String format : outputFormats.split(",")) {
-                            String classifier = new File(apiSource.getSwaggerDirectory()).getName();
-                            File swaggerFile = new File(apiSource.getSwaggerDirectory(), swaggerFileName + "." + format.toLowerCase());
-                            projectHelper.attachArtifact(project, format.toLowerCase(), classifier, swaggerFile);
+                    if (apiSource.isAttachSwaggerArtifact() && apiSource.getSwaggerDirectory() != null && project != null) {
+                        String outputFormats = apiSource.getOutputFormats();
+                        if (outputFormats != null) {
+                            for (String format : outputFormats.split(",")) {
+                                String classifier = new File(apiSource.getSwaggerDirectory()).getName();
+                                File swaggerFile = new File(apiSource.getSwaggerDirectory(), swaggerFileName + "." + format.toLowerCase());
+                                projectHelper.attachArtifact(project, format.toLowerCase(), classifier, swaggerFile);
+                            }
                         }
                     }
                 }
@@ -170,7 +183,7 @@ public class ApiDocumentMojo extends AbstractMojo {
             return false;
         }
     }
-    
+
     private String getSwaggerFileName(String swaggerFileName) {
         return swaggerFileName == null || "".equals(swaggerFileName.trim()) ? "swagger" : swaggerFileName;
     }
