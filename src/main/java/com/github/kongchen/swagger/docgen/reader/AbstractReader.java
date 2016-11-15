@@ -34,6 +34,9 @@ import java.util.*;
 /**
  * @author chekong on 15/4/28.
  */
+/**
+ * @author zychen on 2016/11/14.
+ */
 public abstract class AbstractReader {
     protected final Log LOG;
     protected Swagger swagger;
@@ -205,7 +208,7 @@ public abstract class AbstractReader {
         return (api != null && readHidden) || (api != null && !api.hidden());
     }
 
-    private Set<Tag> extractTags(Annotation annotation) {
+    private Set<Tag> extractTags(Annotation annotation, Class<?> controller) {
         Set<Tag> output = new LinkedHashSet<Tag>();
 
         boolean hasExplicitTags = false;
@@ -229,7 +232,7 @@ public abstract class AbstractReader {
                 }
             }
         }else if ((annotation instanceof Controller) || (annotation instanceof RestController)){
-            Tag tag = new Tag().name("暂时的大标记啊");
+            Tag tag = new Tag().name(controller.getSimpleName());
             tag.description("标签的描述");
             output.add(tag);
         }
@@ -247,10 +250,10 @@ public abstract class AbstractReader {
         }
     }
 
-    protected Map<String, Tag> updateTagsForApi(Map<String, Tag> parentTags, Annotation annotation) {
+    protected Map<String, Tag> updateTagsForApi(Map<String, Tag> parentTags, Annotation annotation, Class<?> controller) {
         // the value will be used as a tag for 2.0 UNLESS a Tags annotation is present
         Map<String, Tag> tagsMap = new HashMap<String, Tag>();
-        for (Tag tag : extractTags(annotation)) {
+        for (Tag tag : extractTags(annotation,controller)) {
             tagsMap.put(tag.getName(), tag);
         }
         if (parentTags != null) {
@@ -306,6 +309,27 @@ public abstract class AbstractReader {
         }
         for (SecurityRequirement security : securities) {
             operation.security(security);
+        }
+    }
+
+    protected void updateOperation(String[] apiConsumes, String[] apiProduces, Map<String, Tag> tags,  Operation operation) {
+        if (operation == null) {
+            return;
+        }
+        if (operation.getConsumes() == null) {
+            for (String mediaType : apiConsumes) {
+                operation.consumes(mediaType);
+            }
+        }
+        if (operation.getProduces() == null) {
+            for (String mediaType : apiProduces) {
+                operation.produces(mediaType);
+            }
+        }
+        if (operation.getTags() == null) {
+            for (String tagString : tags.keySet()) {
+                operation.tag(tagString);
+            }
         }
     }
 

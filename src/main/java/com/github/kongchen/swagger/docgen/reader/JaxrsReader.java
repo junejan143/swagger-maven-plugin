@@ -45,6 +45,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * @author zychen on 2016/11/14.
+ */
 public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
     private static final Logger LOGGER = LoggerFactory.getLogger(JaxrsReader.class);
 
@@ -80,7 +83,7 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
             return swagger;
         }
 
-        Map<String, Tag> tags = updateTagsForApi(parentTags, api);
+        Map<String, Tag> tags = updateTagsForApi(parentTags, api, cls);
         List<SecurityRequirement> securities = getSecurityRequirements(api);
 
         // merge consumes, pro duces

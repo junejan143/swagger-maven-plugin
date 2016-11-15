@@ -2,6 +2,8 @@ package com.github.kongchen.swagger.docgen.mavenplugin;
 
 import com.github.kongchen.swagger.docgen.AbstractDocumentSource;
 import com.github.kongchen.swagger.docgen.GenerateException;
+import com.github.kongchen.swagger.docgen.reader.AbstractReader;
+import com.github.kongchen.swagger.docgen.reader.SpringMvcExtendReader;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.Log;
 import org.springframework.stereotype.Controller;
@@ -14,6 +16,8 @@ import java.util.Set;
  *         01/21/15
  * @author chekong
  * 05/13/2013
+ *
+ * @author zychen  2016/11/14
  */
 public class SpringExtendMavenDocumentSource extends AbstractDocumentSource {
     //private final SpecFilter specFilter = new SpecFilter();
@@ -30,9 +34,8 @@ public class SpringExtendMavenDocumentSource extends AbstractDocumentSource {
         swagger = resolveApiReader().read(clazzs);
     }
 
-    @Override
-    public void loadDocuments() throws GenerateException {
-        swagger = resolveApiReader().read(apiSource.getValidClasses(Controller.class));
+    protected AbstractReader getDefaultReader() {
+        return  new SpringMvcExtendReader(swagger, LOG);
     }
 
 

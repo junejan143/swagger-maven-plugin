@@ -11,15 +11,15 @@ import io.swagger.models.Response;
 import io.swagger.models.Swagger;
 import io.swagger.models.Tag;
 import io.swagger.models.parameters.Parameter;
+import io.swagger.models.properties.Property;
 import org.apache.maven.plugin.logging.Log;
 import org.codehaus.plexus.util.StringUtils;
+import org.springframework.core.LocalVariableTableParameterNameDiscoverer;
+import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -27,6 +27,9 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
 
+/**
+ * @author zychen on 2016/11/14.
+ */
 public class SpringMvcExtendReader extends AbstractReader implements ClassSwaggerReader {
     private String resourcePath;
 
@@ -70,14 +73,14 @@ public class SpringMvcExtendReader extends AbstractReader implements ClassSwagge
             if (!canReadApi(false, api)) {
                 return swagger;
             }
-            updateTagsForApi(null, api);
+            tags = updateTagsForApi(null, api, controller);
             //resourceSecurities = getSecurityRequirements(api);
         }else if (controller.isAnnotationPresent(Controller.class)){//存在@Controller注解
             Controller controllerAnnotation = AnnotationUtils.findAnnotation(controller, Controller.class);
-            updateTagsForApi(null, controllerAnnotation);
+            tags = updateTagsForApi(null, controllerAnnotation, controller);
         }else if (controller.isAnnotationPresent(RestController.class)){//存在@RestController注解
             RestController restControllerAnnotation = AnnotationUtils.findAnnotation(controller, RestController.class);
-            updateTagsForApi(null, restControllerAnnotation);
+            tags = updateTagsForApi(null, restControllerAnnotation, controller);
         }
         //获得类的根路径---用在类上的@RequestMapping
         resourcePath = resource.getControllerMapping();
@@ -120,7 +123,7 @@ public class SpringMvcExtendReader extends AbstractReader implements ClassSwagge
                     updateOperationProduces(new String[0], apiProduces, operation);
 
                     updateTagsForOperation(operation, requestMapping);
-                    //updateOperation(apiConsumes, apiProduces, tags, resourceSecurities, operation);
+                    updateOperation(apiConsumes, apiProduces, tags, operation);
                     updatePath(operationPath, httpMethod, operation);
                 }
             }
@@ -145,46 +148,41 @@ public class SpringMvcExtendReader extends AbstractReader implements ClassSwagge
             if (!apiOperation.nickname().isEmpty()) {
                 operationId = apiOperation.nickname();
             }
+            //设置响应信息头
+            Map<String, Property> defaultResponseHeaders = parseResponseHeaders(apiOperation.responseHeaders());
+            //自定义扩展  这个是@ApiOperation才有的属性
+            Set<Map<String, Object>> customExtensions = parseCustomExtensions(apiOperation.extensions());
+            for (Map<String, Object> extension : customExtensions) {
+                if (extension == null) {
+                    continue;
+                }
+                for (Map.Entry<String, Object> map : extension.entrySet()) {
+                    operation.setVendorExtension(
+                            map.getKey().startsWith("x-")
+                                    ? map.getKey()
+                                    : "x-" + map.getKey(), map.getValue()
+                    );
+                }
+            }
+            //设置每个方法的概要，默认为方法名,默认没有实现注意事项（Implementation Notes）
+            operation.summary(apiOperation.value()).description(apiOperation.notes());
+            //响应状态码
+            if (!apiOperation.response().equals(Void.class)) {
+                responseClass = apiOperation.response();
+            }
+            if (!apiOperation.responseContainer().isEmpty()) {
+                responseContainer = apiOperation.responseContainer();
+            }
+            //TODO:
+            if (method.isAnnotationPresent(ResponseStatus.class)){
+                ResponseStatus responseStatus = AnnotationUtils.findAnnotation(method, ResponseStatus.class);
+                operation.response(responseStatus.code().ordinal(), new Response()
+                        .description("successful operation")
+                        );
+            }
         }else if (anno instanceof RequestMapping){
-
+            operation.summary(method.getName());
         }
-        //设置响应信息头
-        //Map<String, Property> defaultResponseHeaders = parseResponseHeaders(apiOperation.responseHeaders());
-
-        //设置每个方法的概要，默认为方法名,默认没有实现注意事项（Implementation Notes）
-        //operation.summary(apiOperation.value()).description(apiOperation.notes());
-        operation.summary(method.getName());
-
-        /*自定义扩展  这个是@ApiOperation才有的属性
-        Set<Map<String, Object>> customExtensions = parseCustomExtensions(apiOperation.extensions());
-        for (Map<String, Object> extension : customExtensions) {
-            if (extension == null) {
-                continue;
-            }
-            for (Map.Entry<String, Object> map : extension.entrySet()) {
-                operation.setVendorExtension(
-                        map.getKey().startsWith("x-")
-                                ? map.getKey()
-                                : "x-" + map.getKey(), map.getValue()
-                );
-            }
-        }*/
-
-/*      响应状态码
-        if (!apiOperation.response().equals(Void.class)) {
-            responseClass = apiOperation.response();
-        }
-        if (!apiOperation.responseContainer().isEmpty()) {
-            responseContainer = apiOperation.responseContainer();
-        }*/
-        //TODO:
-        //if (method.isAnnotationPresent(ResponseStatus.class)){
-        //    ResponseStatus responseStatus = AnnotationUtils.findAnnotation(method, ResponseStatus.class);
-        //    operation.response(responseStatus.code().ordinal(), new Response()
-        //            .description("successful operation")
-        //            );
-        //}
-
         if (responseClass == null) {
             // pick out response from method declaration
             LOG.info("picking up response class from method " + method);
@@ -278,16 +276,44 @@ public class SpringMvcExtendReader extends AbstractReader implements ClassSwagge
         }
 
         // process parameters
+        //获得方法所有参数的类型 User
         Class[] parameterTypes = method.getParameterTypes();
+        //获得方法参数类型的泛型
         Type[] genericParameterTypes = method.getGenericParameterTypes();
+        //获得方法参数的注解，可以有多个注解，所以是二维数组
         Annotation[][] paramAnnotations = method.getParameterAnnotations();
-        // paramTypes = method.getParameterTypes
-        // genericParamTypes = method.getGenericParameterTypes
-        for (int i = 0; i < parameterTypes.length; i++) {
+        //获取方法的参数名列表
+        ParameterNameDiscoverer paramNameDiscover=new LocalVariableTableParameterNameDiscoverer();
+        String[] paramNames=paramNameDiscover.getParameterNames(method);
+        String paramName;
+
+       for (int i = 0; i < parameterTypes.length; i++) {
+
             Type type = genericParameterTypes[i];
             List<Annotation> annotations = Arrays.asList(paramAnnotations[i]);
             List<Parameter> parameters = getParameters(type, annotations);
+            paramName=paramNames[i];
+
+            //设置元素的in 和 name  还需要优化，此处有问题
             for (Parameter parameter : parameters) {
+                if(parameter.getName()==null||parameter.getName().equals("body")){
+                    parameter.setName(paramName);
+                }
+                if(StringUtils.isEmpty(parameter.getDescription())){
+                    parameter.setDescription(parameterTypes[i].getName());
+                }
+                for (Annotation annotation1 : annotations) {
+                    if (annotation1 instanceof PathVariable){
+                        parameter.setIn("path");
+                        parameter.setRequired(true);
+                    }else if (annotation1 instanceof RequestParam){
+                        RequestParam requestParam = (RequestParam)annotation1;
+                        parameter.setIn("query");
+                        if (requestParam.required()){
+                            parameter.setRequired(true);
+                        }
+                    }
+                }
                 operation.parameter(parameter);
             }
         }
@@ -296,7 +322,7 @@ public class SpringMvcExtendReader extends AbstractReader implements ClassSwagge
             operation.defaultResponse(new Response().description("successful operation"));
         }
         // Process @ApiImplicitParams
-        //this.readImplicitParameters(method, operation);
+        this.readImplicitParameters(method, operation);
         return operation;
     }
 
@@ -330,22 +356,6 @@ public class SpringMvcExtendReader extends AbstractReader implements ClassSwagge
         } else {
             return this.resourcePath;
         }
-    }
-
-    @Deprecated // TODO: Delete method never used
-    private Class<?> getGenericSubtype(Class<?> clazz, Type type) {
-        if (!(clazz.getName().equals("void") || type.toString().equals("void"))) {
-            try {
-                ParameterizedType paramType = (ParameterizedType) type;
-                Type[] argTypes = paramType.getActualTypeArguments();
-                if (argTypes.length > 0) {
-                    return (Class<?>) argTypes[0];
-                }
-            } catch (ClassCastException e) {
-                //FIXME: find out why this happens to only certain types
-            }
-        }
-        return clazz;
     }
 
     //Helper method for loadDocuments()

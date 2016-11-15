@@ -17,6 +17,9 @@ import java.util.Set;
  * @author chekong
  * 05/13/2013
  */
+/**
+ * @author zychen on 2016/11/14.
+ */
 public class SpringMavenDocumentSource extends AbstractDocumentSource {
     private final SpecFilter specFilter = new SpecFilter();
 
@@ -40,8 +43,7 @@ public class SpringMavenDocumentSource extends AbstractDocumentSource {
         swagger = resolveApiReader().read(clazzs);
     }
 
-    protected AbstractReader getDefaultReader()
-    {
+    protected AbstractReader getDefaultReader() {
         return  new SpringMvcApiReader(swagger, LOG);
     }
 

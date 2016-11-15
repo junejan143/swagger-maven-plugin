@@ -46,6 +46,9 @@ import java.util.*;
 /**
  * @author chekong 05/13/2013
  */
+/**
+ * @author zychen on 2016/11/14.
+ */
 public abstract class AbstractDocumentSource {
     protected final ApiSource apiSource;
     protected final Log LOG;
@@ -126,6 +129,8 @@ public abstract class AbstractDocumentSource {
                     new HashMap<String, List<String>>());
         }
     }
+
+    protected abstract AbstractReader getDefaultReader();
 
     public ClassSwaggerReader resolveApiReader() throws GenerateException {
         String customReaderClassName = apiSource.getSwaggerApiReader();

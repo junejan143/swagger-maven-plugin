@@ -86,7 +86,7 @@ public class SpringMvcApiReader extends AbstractReader implements ClassSwaggerRe
             if (!canReadApi(false, api)) {
                 return swagger;
             }
-            tags = updateTagsForApi(null, api);
+            tags = updateTagsForApi(null, api,controller);
             resourceSecurities = getSecurityRequirements(api);
         }
 
@@ -120,7 +120,7 @@ public class SpringMvcApiReader extends AbstractReader implements ClassSwaggerRe
 
                     String[] apiProduces = requestMapping.produces();
                     String[] apiConsumes = requestMapping.consumes();
-                    
+
                     apiProduces = (apiProduces.length == 0) ? controllerProduces : apiProduces;
                     apiConsumes = (apiConsumes.length == 0) ? controllerConsumes : apiConsumes;
 
