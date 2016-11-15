@@ -17,7 +17,6 @@ import com.github.kongchen.swagger.docgen.mavenplugin.SecurityDefinition;
 import com.github.kongchen.swagger.docgen.reader.AbstractReader;
 import com.github.kongchen.swagger.docgen.reader.ClassSwaggerReader;
 import com.github.kongchen.swagger.docgen.reader.ModelModifier;
-import com.github.kongchen.swagger.docgen.reader.SpringMvcExtendReader;
 import io.swagger.config.FilterFactory;
 import io.swagger.converter.ModelConverter;
 import io.swagger.converter.ModelConverters;
@@ -132,10 +131,10 @@ public abstract class AbstractDocumentSource {
 
     protected abstract AbstractReader getDefaultReader();
 
-    public ClassSwaggerReader resolveApiReader() throws GenerateException {
+    protected ClassSwaggerReader resolveApiReader() throws GenerateException {
         String customReaderClassName = apiSource.getSwaggerApiReader();
         if (customReaderClassName == null) {
-            SpringMvcExtendReader reader = new SpringMvcExtendReader(swagger, LOG);
+            AbstractReader reader = getDefaultReader();
             reader.setTypesToSkip(this.typesToSkip);
             return reader;
         } else {

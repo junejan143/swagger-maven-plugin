@@ -30,7 +30,7 @@ import java.util.*;
 /**
  * @author zychen on 2016/11/14.
  */
-public class SpringMvcExtendReader extends AbstractReader implements ClassSwaggerReader {
+public class SpringMvcExtendReader extends AbstractReader {
     private String resourcePath;
 
     public SpringMvcExtendReader(Swagger swagger, Log log) {

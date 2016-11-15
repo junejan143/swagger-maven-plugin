@@ -48,7 +48,7 @@ import java.util.Set;
 /**
  * @author zychen on 2016/11/14.
  */
-public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
+public class JaxrsReader extends AbstractReader {
     private static final Logger LOGGER = LoggerFactory.getLogger(JaxrsReader.class);
 
     public JaxrsReader(Swagger swagger, Log LOG) {

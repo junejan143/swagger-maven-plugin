@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class SpringMvcApiReader extends AbstractReader implements ClassSwaggerReader {
+public class SpringMvcApiReader extends AbstractReader{
     private String resourcePath;
 
     public SpringMvcApiReader(Swagger swagger, Log log) {

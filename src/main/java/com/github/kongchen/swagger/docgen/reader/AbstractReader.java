@@ -37,7 +37,7 @@ import java.util.*;
 /**
  * @author zychen on 2016/11/14.
  */
-public abstract class AbstractReader {
+public abstract class AbstractReader implements ClassSwaggerReader{
     protected final Log LOG;
     protected Swagger swagger;
     private Set<Type> typesToSkip = new HashSet<Type>();
