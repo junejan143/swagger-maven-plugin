@@ -305,7 +305,6 @@ public class SpringMvcExtendReader extends AbstractReader {
                     QueryParameter parameter = new QueryParameter();
                     parameter.setIn("query");
                     parameter.setName(paramName);
-                    parameter.setPattern("Integer");
                     parameter.setDescription(parameterTypes[i].toString());
                     Property schema = ModelConverters.getInstance().readAsProperty(type);
                     if (schema != null) {
