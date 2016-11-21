@@ -67,7 +67,7 @@ public abstract class AbstractReader implements ClassSwaggerReader{
     private void updateExtensionChain() {
         List<SwaggerExtension> extensions = new ArrayList<SwaggerExtension>();
         Class<? extends AbstractReader> clazz = this.getClass();
-        if (clazz == SpringMvcApiReader.class || SpringMvcApiReader.class.isAssignableFrom(clazz)) {
+        if (clazz == SpringMvcExtendReader.class || SpringMvcExtendReader.class.isAssignableFrom(clazz)) {
             extensions.add(new SpringSwaggerExtension());
         } else {
             extensions.add(new BeanParamInjectParamExtention());
@@ -385,7 +385,7 @@ public abstract class AbstractReader implements ClassSwaggerReader{
         Iterator<SwaggerExtension> chain = SwaggerExtensions.chain();
         List<Parameter> parameters = new ArrayList<Parameter>();
         Class<?> cls = TypeUtils.getRawType(type, type);
-        LOG.debug("Looking for path/query/header/form/cookie params in " + cls);
+        LOG.debug("Looking for path/query/header/form/cookie params in =" + cls);
 
         if (chain.hasNext()) {
             SwaggerExtension extension = chain.next();

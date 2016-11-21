@@ -6,11 +6,13 @@ import com.github.kongchen.swagger.docgen.util.SpringUtils;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponses;
+import io.swagger.converter.ModelConverters;
 import io.swagger.models.Operation;
 import io.swagger.models.Response;
 import io.swagger.models.Swagger;
 import io.swagger.models.Tag;
 import io.swagger.models.parameters.Parameter;
+import io.swagger.models.parameters.QueryParameter;
 import io.swagger.models.properties.Property;
 import org.apache.maven.plugin.logging.Log;
 import org.codehaus.plexus.util.StringUtils;
@@ -19,7 +21,10 @@ import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -75,10 +80,10 @@ public class SpringMvcExtendReader extends AbstractReader {
             }
             tags = updateTagsForApi(null, api, controller);
             //resourceSecurities = getSecurityRequirements(api);
-        }else if (controller.isAnnotationPresent(Controller.class)){//存在@Controller注解
+        } else if (controller.isAnnotationPresent(Controller.class)) {//存在@Controller注解
             Controller controllerAnnotation = AnnotationUtils.findAnnotation(controller, Controller.class);
             tags = updateTagsForApi(null, controllerAnnotation, controller);
-        }else if (controller.isAnnotationPresent(RestController.class)){//存在@RestController注解
+        } else if (controller.isAnnotationPresent(RestController.class)) {//存在@RestController注解
             RestController restControllerAnnotation = AnnotationUtils.findAnnotation(controller, RestController.class);
             tags = updateTagsForApi(null, restControllerAnnotation, controller);
         }
@@ -105,7 +110,7 @@ public class SpringMvcExtendReader extends AbstractReader {
                 //http method
                 for (RequestMethod requestMethod : requestMapping.method()) {
                     String httpMethod = requestMethod.toString().toLowerCase();
-                    Operation operation = parseMethod(method,requestMapping);
+                    Operation operation = parseMethod(method, requestMapping);
 
                     updateOperationParameters(new ArrayList<Parameter>(), regexMap, operation);
                     //if (){
@@ -140,7 +145,7 @@ public class SpringMvcExtendReader extends AbstractReader {
         String operationId = method.getName();
         String responseContainer = null;
 
-        if (anno instanceof ApiOperation){
+        if (anno instanceof ApiOperation) {
             ApiOperation apiOperation = AnnotationUtils.findAnnotation(method, ApiOperation.class);
             if (apiOperation.hidden()) {
                 return null;
@@ -174,13 +179,13 @@ public class SpringMvcExtendReader extends AbstractReader {
                 responseContainer = apiOperation.responseContainer();
             }
             //TODO:
-            if (method.isAnnotationPresent(ResponseStatus.class)){
+            if (method.isAnnotationPresent(ResponseStatus.class)) {
                 ResponseStatus responseStatus = AnnotationUtils.findAnnotation(method, ResponseStatus.class);
                 operation.response(responseStatus.code().ordinal(), new Response()
                         .description("successful operation")
-                        );
+                );
             }
-        }else if (anno instanceof RequestMapping){
+        } else if (anno instanceof RequestMapping) {
             operation.summary(method.getName());
         }
         if (responseClass == null) {
@@ -283,36 +288,37 @@ public class SpringMvcExtendReader extends AbstractReader {
         //获得方法参数的注解，可以有多个注解，所以是二维数组
         Annotation[][] paramAnnotations = method.getParameterAnnotations();
         //获取方法的参数名列表
-        ParameterNameDiscoverer paramNameDiscover=new LocalVariableTableParameterNameDiscoverer();
-        String[] paramNames=paramNameDiscover.getParameterNames(method);
+        ParameterNameDiscoverer paramNameDiscover = new LocalVariableTableParameterNameDiscoverer();
+        //if (paramAnnotations)
+        String[] paramNames = paramNameDiscover.getParameterNames(method);
         String paramName;
 
-       for (int i = 0; i < parameterTypes.length; i++) {
-
+        for (int i = 0; i < parameterTypes.length; i++) {
             Type type = genericParameterTypes[i];
             List<Annotation> annotations = Arrays.asList(paramAnnotations[i]);
             List<Parameter> parameters = getParameters(type, annotations);
             paramName=paramNames[i];
 
-            //设置元素的in 和 name  还需要优化，此处有问题
-            for (Parameter parameter : parameters) {
-                if(parameter.getName()==null||parameter.getName().equals("body")){
+            if (parameters.isEmpty()) {
+                //此处将HttpServletRequest、HttpServletResponse不做参数，忽略掉
+                if (parameterTypes[i].toString().lastIndexOf("HttpServletRequest")==-1 && parameterTypes[i].toString().lastIndexOf("HttpServletResponse")==-1){
+                    QueryParameter parameter = new QueryParameter();
+                    parameter.setIn("query");
                     parameter.setName(paramName);
+                    parameter.setPattern("Integer");
+                    parameter.setDescription(parameterTypes[i].toString());
+                    Property schema = ModelConverters.getInstance().readAsProperty(type);
+                    if (schema != null) {
+                        parameter.setProperty(schema);
+                    }
+                    operation.parameter(parameter);
                 }
+            }
+
+            for (Parameter parameter : parameters) {
+                parameter.setName(paramName);
                 if(StringUtils.isEmpty(parameter.getDescription())){
                     parameter.setDescription(parameterTypes[i].getName());
-                }
-                for (Annotation annotation1 : annotations) {
-                    if (annotation1 instanceof PathVariable){
-                        parameter.setIn("path");
-                        parameter.setRequired(true);
-                    }else if (annotation1 instanceof RequestParam){
-                        RequestParam requestParam = (RequestParam)annotation1;
-                        parameter.setIn("query");
-                        if (requestParam.required()){
-                            parameter.setRequired(true);
-                        }
-                    }
                 }
                 operation.parameter(parameter);
             }
@@ -360,7 +366,7 @@ public class SpringMvcExtendReader extends AbstractReader {
 
     //Helper method for loadDocuments()
     private Map<String, SpringResource> analyzeController(Class<?> controllerClazz, Map<String, SpringResource> resourceMap, String description) {
-	String[] controllerRequestMappingValues = SpringUtils.getControllerResquestMapping(controllerClazz);
+        String[] controllerRequestMappingValues = SpringUtils.getControllerResquestMapping(controllerClazz);
 
         // Iterate over all value attributes of the class-level RequestMapping annotation
         for (String controllerRequestMappingValue : controllerRequestMappingValues) {
