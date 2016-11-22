@@ -107,8 +107,15 @@ public class SpringMvcExtendReader extends AbstractReader {
                 Map<String, String> regexMap = new HashMap<String, String>();
                 String operationPath = parseOperationPath(path, regexMap);
 
+                List<RequestMethod> requestMethodList = new ArrayList<RequestMethod>();
                 //http method
-                for (RequestMethod requestMethod : requestMapping.method()) {
+                //如果没有设置method则默认给其一个post方法访问
+                if (requestMapping.method().length == 0) {
+                    requestMethodList.add(RequestMethod.POST);
+                }else {
+                    Collections.addAll(requestMethodList, requestMapping.method());
+                }
+                for (RequestMethod requestMethod : requestMethodList) {
                     String httpMethod = requestMethod.toString().toLowerCase();
                     Operation operation = parseMethod(method, requestMapping);
 
@@ -375,30 +382,32 @@ public class SpringMvcExtendReader extends AbstractReader {
                 // Look for method-level @RequestMapping annotation
                 if (methodRequestMapping != null) {
                     RequestMethod[] requestMappingRequestMethods = methodRequestMapping.method();
-
+                    //如果没有设置method则默认给其一个post方法访问
+                    List<RequestMethod> requestMethodList = new ArrayList<RequestMethod>();
+                    if (requestMappingRequestMethods.length == 0) {
+                        requestMethodList.add(RequestMethod.POST);
+                    }else {
+                        Collections.addAll(requestMethodList, requestMappingRequestMethods);
+                    }
                     // For each method-level @RequestMapping annotation, iterate over HTTP Verb
-                    for (RequestMethod requestMappingRequestMethod : requestMappingRequestMethods) {
+                    for (RequestMethod requestMappingRequestMethod : requestMethodList) {
                         String[] methodRequestMappingValues = methodRequestMapping.value();
-
                         // Check for cases where method-level @RequestMapping#value is not set, and use the controllers @RequestMapping
                         if (methodRequestMappingValues.length == 0) {
                             // The map key is a concat of the following:
-                            //   1. The controller package
-                            //   2. The controller class name
-                            //   3. The controller-level @RequestMapping#value
+                            // 1. The controller package
+                            // 2. The controller class name
+                            // 3. The controller-level @RequestMapping#value
                             String resourceKey = controllerClazz.getCanonicalName() + controllerRequestMappingValue + requestMappingRequestMethod;
                             if (!resourceMap.containsKey(resourceKey)) {
-                                resourceMap.put(
-                                        resourceKey,
-                                        new SpringResource(controllerClazz, controllerRequestMappingValue, resourceKey, description));
+                                resourceMap.put(resourceKey, new SpringResource(controllerClazz, controllerRequestMappingValue, resourceKey, description));
                             }
                             resourceMap.get(resourceKey).addMethod(method);
                         } else {
                             // Here we know that method-level @RequestMapping#value is populated, so
                             // iterate over all the @RequestMapping#value attributes, and add them to the resource map.
                             for (String methodRequestMappingValue : methodRequestMappingValues) {
-                                String resourceKey = controllerClazz.getCanonicalName() + controllerRequestMappingValue
-                                        + methodRequestMappingValue + requestMappingRequestMethod;
+                                String resourceKey = controllerClazz.getCanonicalName() + controllerRequestMappingValue + methodRequestMappingValue + requestMappingRequestMethod;
                                 if (!methodRequestMappingValue.isEmpty()) {
                                     if (!resourceMap.containsKey(resourceKey)) {
                                         resourceMap.put(resourceKey, new SpringResource(controllerClazz, methodRequestMappingValue, resourceKey, description));
@@ -421,7 +430,6 @@ public class SpringMvcExtendReader extends AbstractReader {
     protected Map<String, SpringResource> generateResourceMap(Set<Class<?>> validClasses) throws GenerateException {
         Map<String, SpringResource> resourceMap = new HashMap<String, SpringResource>();
         for (Class<?> aClass : validClasses) {
-            RequestMapping requestMapping = AnnotationUtils.findAnnotation(aClass, RequestMapping.class);
             //This try/catch block is to stop a bamboo build from failing due to NoClassDefFoundError
             //This occurs when a class or method loaded by reflections contains a type that has no dependency
             try {
@@ -432,7 +440,7 @@ public class SpringMvcExtendReader extends AbstractReader {
                 }
             } catch (NoClassDefFoundError e) {
                 LOG.error(e.getMessage());
-                LOG.info(aClass.getName());
+                //LOG.info(aClass.getName());
                 //exception occurs when a method type or annotation is not recognized by the plugin
             }
         }
